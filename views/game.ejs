@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include("partials/head.ejs") %>
+<body>
+  <%- include("partials/header.ejs") %>
+  <div class="game-container">
+    <h2>Welcome, <%= user.name %></h2>
+    <div id="playersList" class="players-list"></div>
+    <h3 id="waiting-message" class="waiting-message">
+      New game started! Waiting for another player...
+    </h3>
+    <div id="resultBg" class="result-bg"></div>
+    <div id="resultDiv" class="result-div"></div>
+    <div id="grid" class="grid"></div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // Listen for game moves
+    socket.on("game", (game) => {
+      const mePlayerId = JSON.parse(`<%- JSON.stringify(user) %>`)._id;
+      const player0MonsterCount = game.grid.flat().filter(
+        (cell) => cell.monster && cell.monster.player === game.players[0]._id
+      ).length;
+      const player1MonsterCount = game.grid.flat().filter(
+        (cell) => cell.monster && cell.monster.player === game.players[1]._id
+      ).length;
+      const resultBg = document.querySelector("#resultBg");
+      const resultDiv = document.querySelector("#resultDiv");
+      if (player0MonsterCount === 0 || player1MonsterCount === 0) {
+        let resultMessage = '';
+        let resultColor = '';
+        if (player0MonsterCount === 0 && player1MonsterCount === 0) {
+          resultMessage = "Draw!";
+          resultColor = "#ccc";
+        } else if (player0MonsterCount === 0 && game.players[0]._id === mePlayerId) {
+          resultMessage = "You lost!";
+          resultColor = "red";
+        } else if (player1MonsterCount === 0 && game.players[1]._id === mePlayerId) {
+          resultMessage = "You Lost!";
+          resultColor = "red";
+        } else if (player0MonsterCount === 0 && game.players[1]._id === mePlayerId) {
+          resultMessage = "You won!";
+          resultColor = "green";
+        } else if (player1MonsterCount === 0 && game.players[0]._id === mePlayerId) {
+          resultMessage = "You won!";
+          resultColor = "green";
+        }
+        resultBg.style.display = "block";
+        resultDiv.style.display = "block";
+        resultDiv.innerHTML = `<h1 style="color: white; background: ${resultColor}; padding: 1rem">${resultMessage}</h1><a href="/game" class="play-again">Play again</a> <a href="/profile" class="go-profile">Go to profile</a>`;
+
+        // Emit result to server to save in database
+        socket.emit("result", {
+          gameId: game._id,
+          players: game.players.map((player) => player._id),
+          winner:
+            player0MonsterCount === 0 && player1MonsterCount === 0
+              ? null
+              : player0MonsterCount === 0
+              ? game.players[1]._id
+              : game.players[0]._id,
+        });
+      }
+      const playersList = document.querySelector("#playersList");
+      playersList.innerHTML = `
+        <h3 class="${game.turn === game.players[0]._id ? 'active-player' : 'inactive-player'}">${game.players[0].name}
+          ${game.turn === game.players[0]._id ? `<span class="turn-indicator"> (👋) </span>` : ""}
+        </h3>
+        <h3 class="${game.turn === game.players[1]._id ? 'active-player' : 'inactive-player'}">${game.players[1].name}
+          ${game.turn === game.players[1]._id ? `<span class="turn-indicator"> (👋) </span>` : ""}
+        </h3>
+      `;
+      const cells = document.querySelectorAll(".cell");
+      const gameGrid = game.grid;
+      cells.forEach((cell, index) => {
+        cell.addEventListener("click", handleCellClick);
+        const x = Math.floor(index / 10);
+        const y = index % 10;
+        cell.style.backgroundColor = gameGrid[x][y].monster
+          ? gameGrid[x][y].monster.player === game.players[0]._id
+            ? "#ff0023"
+            : "#00ff43"
+          : "white";
+        cell.innerHTML = gameGrid[x][y].monster
+          ? `<img src="/images/${gameGrid[x][y].monster.type}.png" class="monster-image" />`
+          : "";
+      });
+
+      // Function to handle cell click event
+      function handleCellClick(event) {
+        const mePlayerId = JSON.parse(`<%- JSON.stringify(user) %>`)._id;
+        if (game.turn !== mePlayerId) return;
+        const otherPlayerId = game.players.find(
+          (player) => player._id !== mePlayerId
+        )._id;
+        const cell = event.currentTarget;
+        const x = Number(cell.dataset.x);
+        const y = Number(cell.dataset.y);
+        const cells = document.querySelectorAll(".cell");
+        const selectedCell = Array.from(cells).find(
+          (cell) => cell.dataset.selected === "true"
+        );
+        
+        if (
+          selectedCell &&
+          getPathCells(
+            game,
+            Number(selectedCell.dataset.x),
+            Number(selectedCell.dataset.y),
+            mePlayerId,
+            otherPlayerId
+          ).includes(cell)
+        ) {
+          const fromMonster =
+            game.grid[Number(selectedCell.dataset.x)][
+              Number(selectedCell.dataset.y)
+            ].monster;
+          const toMonster = game.grid[x][y].monster;
+          if (!toMonster) {
+            game.grid[x][y].monster = fromMonster;
+            game.grid[Number(selectedCell.dataset.x)][
+              Number(selectedCell.dataset.y)
+            ].monster = null;
+          } else {
+            if (
+              (fromMonster.type === "vampire" &&
+                toMonster.type === "werewolf") ||
+              (fromMonster.type === "werewolf" && toMonster.type === "vampire")
+            ) {
+              game.grid[x][y].monster = [fromMonster, toMonster].find(
+                (monster) => monster.type === "vampire"
+              );
+              game.grid[Number(selectedCell.dataset.x)][
+                Number(selectedCell.dataset.y)
+              ].monster = null;
+            } else if (
+              (fromMonster.type === "werewolf" && toMonster.type === "ghost") ||
+              (fromMonster.type === "ghost" && toMonster.type === "werewolf")
+            ) {
+              game.grid[x][y].monster = [fromMonster, toMonster].find(
+                (monster) => monster.type === "werewolf"
+              );
+              game.grid[Number(selectedCell.dataset.x)][
+                Number(selectedCell.dataset.y)
+              ].monster = null;
+            } else if (
+              (fromMonster.type === "ghost" && toMonster.type === "vampire") ||
+              (fromMonster.type === "vampire" && toMonster.type === "ghost")
+            ) {
+              game.grid[x][y].monster = [fromMonster, toMonster].find(
+                (monster) => monster.type === "ghost"
+              );
+              game.grid[Number(selectedCell.dataset.x)][
+                Number(selectedCell.dataset.y)
+              ].monster = null;
+            } else if (fromMonster.type === toMonster.type) {
+              game.grid[x][y].monster = null;
+              game.grid[Number(selectedCell.dataset.x)][
+                Number(selectedCell.dataset.y)
+              ].monster = null;
+            }
+          }
+          game.turn = otherPlayerId;
+          // Emit game to server to update in database
+          socket.emit("game", {
+            gameId: game._id,
+            game,
+          });
+          hidePath();
+        } else {
+          showPath(game, x, y, mePlayerId, otherPlayerId, event);
+        }
+      }
+      renderGridOrWaitingMessage();
+    });
+
+    // Function to show path where monster can move
+    function showPath(game, x, y, mePlayerId, otherPlayerId, event) {
+      hidePath();
+      if (!game.grid[x][y].monster) return;
+      if (game.grid[x][y].monster.player !== mePlayerId) return;
+      event.currentTarget.dataset.selected = "true";
+      const pathCells = getPathCells(game, x, y, mePlayerId, otherPlayerId);
+      pathCells.forEach((pathCell) => {
+        pathCell.style.boxShadow = "0 0 10px 5px yellow";
+      });
+    }
+
+    // Function to hide path where monster can move
+    function hidePath() {
+      const cells = document.querySelectorAll(".cell");
+      cells.forEach((cell) => {
+        cell.style.boxShadow = "none";
+        cell.dataset.selected = "false";
+      });
+    }
+
+    // Function to get path cells
+    function getPathCells(game, x, y, mePlayerId, otherPlayerId) {
+      const cells = document.querySelectorAll(".cell");
+      let pathCells = [];
+      for (let i = x + 1; i < 10; i++) {
+        if (game.grid[i][y].monster) {
+          if (game.grid[i][y].monster.player === mePlayerId) {
+            continue;
+          } else if (game.grid[i][y].monster.player === otherPlayerId) {
+            pathCells.push(cells[i * 10 + y]);
+            break;
+          }
+        } else {
+          pathCells.push(cells[i * 10 + y]);
+        }
+      }
+      for (let i = x - 1; i >= 0; i--) {
+        if (game.grid[i][y].monster) {
+          if (game.grid[i][y].monster.player === mePlayerId) {
+            continue;
+          } else if (game.grid[i][y].monster.player === otherPlayerId) {
+            pathCells.push(cells[i * 10 + y]);
+            break;
+          }
+        } else {
+          pathCells.push(cells[i * 10 + y]);
+        }
+      }
+      for (let i = y + 1; i < 10; i++) {
+        if (game.grid[x][i].monster) {
+          if (game.grid[x][i].monster.player === mePlayerId) {
+            continue;
+          } else if (game.grid[x][i].monster.player === otherPlayerId) {
+            pathCells.push(cells[x * 10 + i]);
+            break;
+          }
+        } else {
+          pathCells.push(cells[x * 10 + i]);
+        }
+      }
+      for (let i = y - 1; i >= 0; i--) {
+        if (game.grid[x][i].monster) {
+          if (game.grid[x][i].monster.player === mePlayerId) {
+            continue;
+          } else if (game.grid[x][i].monster.player === otherPlayerId) {
+            pathCells.push(cells[x * 10 + i]);
+            break;
+          }
+        } else {
+          pathCells.push(cells[x * 10 + i]);
+        }
+      }
+      for (let i = x + 1, j = y + 1; i < x + 3 && j < y + 3; i++, j++) {
+        if (i >= 10 || j >= 10) break;
+        if (game.grid[i][j].monster) {
+          if (game.grid[i][j].monster.player === mePlayerId) {
+            continue;
+          } else if (game.grid[i][j].monster.player === otherPlayerId) {
+            pathCells.push(cells[i * 10 + j]);
+            break;
+          }
+        } else {
+          pathCells.push(cells[i * 10 + j]);
+        }
+      }
+      for (let i = x - 1, j = y - 1; i > x - 3 && j > y - 3; i--, j--) {
+        if (i < 0 || j < 0) break;
+        if (game.grid[i][j].monster) {
+          if (game.grid[i][j].monster.player === mePlayerId) {
+            continue;
+          } else if (game.grid[i][j].monster.player === otherPlayerId) {
+            pathCells.push(cells[i * 10 + j]);
+            break;
+          }
+        } else {
+          pathCells.push(cells[i * 10 + j]);
+        }
+      }
+      for (let i = x + 1, j = y - 1; i < x + 3 && j > y - 3; i++, j--) {
+        if (i >= 10 || j < 0) break;
+        if (game.grid[i][j].monster) {
+          if (game.grid[i][j].monster.player === mePlayerId) {
+            continue;
+          } else if (game.grid[i][j].monster.player === otherPlayerId) {
+            pathCells.push(cells[i * 10 + j]);
+            break;
+          }
+        } else {
+          pathCells.push(cells[i * 10 + j]);
+        }
+      }
+      for (let i = x - 1, j = y + 1; i > x - 3 && j < y + 3; i--, j++) {
+        if (i < 0 || j >= 10) break;
+        if (game.grid[i][j].monster) {
+          if (game.grid[i][j].monster.player === mePlayerId) {
+            continue;
+          } else if (game.grid[i][j].monster.player === otherPlayerId) {
+            pathCells.push(cells[i * 10 + j]);
+            break;
+          }
+        } else {
+          pathCells.push(cells[i * 10 + j]);
+        }
+      }
+      return pathCells;
+    }
+
+    // Emit joinGame event to server to join game
+    document.addEventListener("DOMContentLoaded", () => {
+      const grid = document.querySelector("#grid");
+      const game = JSON.parse(`<%- JSON.stringify(game) %>`);
+      game.grid.forEach((row, x) => {
+        row.forEach((cell, y) => {
+          const cellElement = document.createElement("div");
+          cellElement.classList.add("cell");
+          cellElement.dataset.x = x;
+          cellElement.dataset.y = y;
+          grid.appendChild(cellElement);
+        });
+      });
+      socket.emit("joinGame", { gameId: game._id });
+      if (game.players.length === 2) {
+        socket.emit("game", {
+          gameId: game._id,
+          game: JSON.parse(`<%- JSON.stringify(game) %>`),
+        });
+      }
+    });
+
+    // Function to render grid or waiting message based on players count
+    function renderGridOrWaitingMessage() {
+      const gridContainer = document.querySelector("#grid");
+      const waitingMessage = document.querySelector("#waiting-message");
+      gridContainer.style.display = "grid";
+      waitingMessage.style.display = "none";
+    }
+  </script>
+</body>
+</html>
