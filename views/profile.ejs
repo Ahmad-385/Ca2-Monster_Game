@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include("partials/head.ejs") %>
+<body>
+  <%- include("partials/header.ejs") %>
+  <div class="profile-container">
+    <div class="profile-card">
+      <h2>Profile</h2>
+      <div class="profile-info">
+        <p><strong>Name:</strong> <%= user.name %></p>
+        <p><strong>User Id:</strong> <%= user.username %></p>
+        <p><strong>Completed Games:</strong> <%= user.gamesWon + user.gamesLost + user.gamesDrawn %></p>
+        <p><strong>Victories:</strong> <%= user.gamesWon %></p>
+        <p><strong>Deefeats:</strong> <%= user.gamesLost %></p>
+        <p><strong>Tied Games:</strong> <%= user.gamesDrawn %></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
