@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include("partials/head.ejs") %>
+<body>
+  <%- include("partials/header.ejs") %>
+  <div class="login-container">
+    <h1>Sign In</h1>
+    <% if (errorMessage) { %>
+    <p class="error"><%= errorMessage %></p>
+    <% } %>
+    <form action="/login" method="post" class="login-form">
+      <label for="username">User Id:</label>
+      <input type="text" name="username" id="username" class="input-field" required />
+      <label for="password">Passcode:</label>
+      <input type="password" name="password" id="password" class="input-field" required />
+      <input type="submit" value="Login" class="submit-button" />
+    </form>
+    <p>Create an account <a href="/register">Sign Up</a></p>
+  </div>
+</body>
+</html>
