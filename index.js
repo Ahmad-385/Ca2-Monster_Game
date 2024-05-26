@@ -1,0 +1,14 @@
+const express = require("express");
+const bodyParser = require("body-parser");
+require("ejs");
+const http = require("http");
+const path = require("path");
+const passport = require("passport");
+const session = require("express-session");
+const mongoose = require("mongoose");
+const User = require("./models/user");
+const flash = require("connect-flash");
+const { Server } = require("socket.io");
+require("dotenv").config();
+const PORT = process.env.PORT || 3000;
+const Game = require("./models/game");
