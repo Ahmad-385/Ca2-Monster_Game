@@ -131,3 +131,27 @@ router.get("/", (req, res) => {
     });
   });
   
+
+  // Route to render the game page
+router.get("/game", async (req, res) => {
+    if (!req.isAuthenticated()) return res.redirect("/login");
+    const user = req.user;
+    // Find an ongoing game with only one player
+    let game = await Game.findOne({
+      status: "ongoing",
+      players: { $size: 1 },
+    });
+  
+    if (game) {
+      // Add current user to the existing game if they are the same player
+      if (game.players[0]._id.toString() === user._id.toString()) {
+        game = await game.populate("players");
+        return res.render("game", { user, game });
+      }
+      // Add current user to the existing game as the second player
+      game.players.push(user._id);
+      await game.save();
+      game = game;
+    } else {
+      // Create a new game with the current user
+  
