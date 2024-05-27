@@ -50,3 +50,84 @@ const mongoConnect = async () => {
   const router = express.Router();
   
   
+
+  // Route to render the homepage
+router.get("/", (req, res) => {
+    res.render("index");
+  });
+  
+  // Route to render the login page
+  router.get("/login", (req, res) => {
+    if (req.isAuthenticated()) {
+      return res.redirect("/game");
+    }
+    const errorMessage = req.flash("error");
+    return res.render("login", { errorMessage });
+  });
+  
+  // Route to handle login
+  router.post(
+    "/login",
+    passport.authenticate("local", {
+      failureRedirect: "/login",
+      failureFlash: true,
+      failureMessage: true,
+    }),
+    function (req, res) {
+      res.redirect("/game");
+    }
+  );
+  
+  // Route to handle logout
+  router.get("/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        console.log("Error logging out: ", err);
+      }
+      res.redirect("/");
+    });
+  });
+  
+  // Route to render the register page
+  router.get("/register", (req, res) => {
+    if (req.isAuthenticated()) res.redirect("/game");
+    res.render("register", {
+      errorMessage: null,
+    });
+  });
+  
+  // Route to handle registration
+  router.post("/register", (req, res) => {
+    if (req.isAuthenticated()) {
+      return res.redirect("/game");
+    }
+    const newUser = new User({
+      name: req.body.name,
+      username: req.body.username,
+    });
+    
+    // Register the user with passport
+    User.register(newUser, req.body.password, (err) => {
+      if (err) {
+        if (err.name === "MissingUsernameError") {
+          return res.render("register", {
+            errorMessage: "Please enter a username",
+          });
+        } else if (err.name === "MissingPasswordError") {
+          return res.render("register", {
+            errorMessage: "Please enter a password",
+          });
+        } else if (err.name === "UserExistsError") {
+          return res.render("register", {
+            errorMessage: "This username already exists",
+          });
+        } else {
+          return res.render("register", { errorMessage: "An error occurred" });
+        }
+      }
+      passport.authenticate("local")(req, res, () => {
+        return res.redirect("/game");
+      });
+    });
+  });
+  
