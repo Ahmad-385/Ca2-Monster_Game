@@ -153,5 +153,33 @@ router.get("/game", async (req, res) => {
       await game.save();
       game = game;
     } else {
-      // Create a new game with the current user
+        
+// Create a new game with the current user
+game = new Game({
+    players: [user._id],
+    grid: Array(10)
+      .fill()
+      .map(() => Array(10).fill({ monster: null })), // Initialize a 10x10 grid with no monsters
+  });
+  await game.save();
+  game = await Game.findById(game._id); // Retrieve the newly created game
+  
+  // If there are two players in the game
+  if (game.players.length === 2) {
+    const monsterTypes = ["vampire", "werewolf", "ghost"]; // Define monster types
+    // Placing monsters for player 1
+    for (let i = 0; i < 10; i++) {
+      const row = 0;
+      const randomCol = Math.floor(Math.random() * 10); // Random column
+      if (!game.grid[row][randomCol].monster) {
+        const randomMonsterType =
+          monsterTypes[Math.floor(Math.random() * monsterTypes.length)]; // Random monster type
+        game.grid[row][randomCol].monster = {
+          type: randomMonsterType,
+          player: game.players[0]._id,
+        };
+      } else {
+        i--; // Retry if the cell is already occupied
+      }
+    }
   
