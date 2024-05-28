@@ -182,4 +182,44 @@ game = new Game({
         i--; // Retry if the cell is already occupied
       }
     }
+  // Placing monsters for player 2
+for (let i = 0; i < 10; i++) {
+    const row = 9;
+    const randomCol = Math.floor(Math.random() * 10); // Random column
+    if (!game.grid[row][randomCol].monster) {
+      const randomMonsterType =
+        monsterTypes[Math.floor(Math.random() * monsterTypes.length)]; // Random monster type
+      game.grid[row][randomCol].monster = {
+        type: randomMonsterType,
+        player: game.players[1]._id,
+      };
+    } else {
+      i--; // Retry if the cell is already occupied
+    }
+  }
+  
+  // Determine turn
+  game.turn =
+    game.players[Math.floor(Math.random() * game.players.length)]._id;
+  
+  await game.save(); // Save the game with the updated grid and turn
+  
+  game = await game.populate("players"); // Populate player details for rendering
+  return res.render("game", { user, game }); // Render the game page with user and game details
+  });
+  
+  // Route to handle game moves
+  router.get("/profile", async (req, res) => {
+    if (!req.isAuthenticated()) return res.redirect("/login"); // Check if user is authenticated
+    const user = req.user;
+    console.log(user); // Log user details
+    res.render("profile", { user }); // Render the profile page with user details
+  });
+  
+  app.use("/", router); // Use the defined routes
+  
+  const server = http.createServer(app); // Create HTTP server
+  server.listen(PORT, () => {
+    console.log(`Listening on port ${PORT}. http://localhost:${PORT}/`); // Start server and listen on specified port
+  });
   
