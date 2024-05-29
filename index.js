@@ -220,3 +220,55 @@ const server = http.createServer(app); // Create HTTP server
 server.listen(PORT, () => {
   console.log(`Listening on port ${PORT}. http://localhost:${PORT}/`); // Start server and listen on specified port
 });
+// Socket.io setup
+const io = new Server(server);
+
+// Socket.io events
+io.on("connection", (socket) => {
+  // Join a game room
+  socket.on("joinGame", ({ gameId }) => {
+    socket.join(gameId);
+  });
+
+  // Broadcast game state to a specific game room
+  socket.on("game", ({ gameId, game }) => {
+    io.to(gameId).emit("game", game);
+  });
+
+  // Handle game result and update players and game status
+  socket.on("result", ({ gameId, players, winner }) => {
+    updatePlayers(players, winner); // Update players' records
+    updateGame(gameId); // Update game status
+  });
+});
+
+// Update players' status after the game ends
+async function updatePlayers(players, winner) {
+  const player0 = await User.findById(players[0]);
+  const player1 = await User.findById(players[1]);
+  
+  // Update win/loss/draw records based on the winner
+  if (winner) {
+    if (winner === players[0]) {
+      player0.gamesWon++;
+      player1.gamesLost++;
+    } else {
+      player1.gamesWon++;
+      player0.gamesLost++;
+    }
+  } else {
+    player0.gamesDrawn++;
+    player1.gamesDrawn++;
+  }
+  
+  // Save updated player records
+  await player0.save();
+  await player1.save();
+}
+
+// Update game status after the game ends
+async function updateGame(gameId) {
+  const game = await Game.findById(gameId);
+  game.status = "finished"; // Mark game as finished
+  await game.save(); // Save updated game status
+}
